@@ -1,0 +1,55 @@
+.TH INSTALL_EXTRAS 1 "October 15, 2023" "install_extras" "User Commands"
+
+.SH NAME
+install_extras \- Installs packages or runs directives listed in a file
+
+.SH SYNOPSIS
+.B install_extras
+[\-n] [\-p] [\-h]
+.I filename
+
+.SH DESCRIPTION
+This script reads a list of packages or directives from a file, then installs packages with apt or performs other actions like adding repositories or running custom scripts. Each line of the file can specify a package name, or a directive with additional instructions.
+
+.PP
+The available directives include:
+.TP
+.B deb
+Add a Debian source to /etc/apt/sources.list.d/
+.TP
+.B repo
+Add a repository with add\-apt\-repository
+.TP
+.B url
+Download and install a package from a URL
+.TP
+.B script
+Run a custom script before or after installation
+.TP
+.B source
+Add content to a file in /etc/apt/sources.list.d/
+
+.SH OPTIONS
+.TP
+.B \-n
+Dry run (do not actually install packages).
+.TP
+.B \-p
+Preserve the temporary working directory.
+.TP
+.B \-h
+Display help and exit.
+
+.SH EXAMPLES
+.nf
+install_extras -n package_list.txt
+install_extras -p package_list.txt
+.fi
+
+.SH EXIT STATUS
+The script exits with status 0 on success, and a non-zero status if an error occurs.
+
+.SH COPYRIGHT
+Copyright © 2023.  
+This is free software; see the source for copying conditions.  
+There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
