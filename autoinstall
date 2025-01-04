@@ -40,6 +40,9 @@
 #   # Add a apt source to /etc/apt/sources.list.d and install a package
 #   package-name: deb: /etc/apt/sources.list.d/example.list
 
+# Version info
+VERSION="1.0"
+
 # Command line flags
 dry_run=false
 preserve_working_dir=false
@@ -56,6 +59,7 @@ Usage: $0 [OPTIONS] <filename>
 Options:
   -n   Dry run (do not actually install packages)
   -p   Preserve the temporary working directory
+  -v   Display version information
   -h   Display this help message and exit
 
 Examples:
@@ -63,6 +67,11 @@ Examples:
   $0 -p package_list.txt
 EOF
   bail $exit_code
+}
+
+version() {
+  echo "$0 version $VERSION"
+  bail 0
 }
 
 # Exit and clean up temp directory
@@ -89,6 +98,9 @@ parse_command_line() {
       -p)
         preserve_working_dir=true
         shift
+        ;;
+      -v)
+        version
         ;;
       -h)
         usage 0
