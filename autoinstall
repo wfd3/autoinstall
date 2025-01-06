@@ -212,6 +212,13 @@ add_deb_source() {
     echo "$string" > "$filename"
     echo "Added package source in $filename"
   fi
+
+  echo "Added repository: $repo, running 'apt update'"
+  apt update >& /dev/null
+  if [[ $? -ne 0 ]]; then
+    echo "Error updating package list. Exiting."
+    bail 1
+  fi
 }
 
 # Add a repository using add-apt-repository
