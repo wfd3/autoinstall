@@ -3,18 +3,18 @@
 #
 # Install packages from a list of packages and manage package repository dependencies
 #
-# This script reads a list of packages from a file and installs them using apt. 
+# This script reads a list of packages from a file and installs them using apt.
 # The file can contain package names, URLs, scripts, and directives to add repositories.
-# 
+#
 # Usage: autoinstall [-n] [-p] <filename>
 #   -n   Dry run (do not actually install packages)
 #   -p   Preserve the temporary working directory
 #   -h   Display this help message and exit
-# 
+#
 # Examples:
 #   autoinstall -n package_list.cfg
 #   autoinstall -p package_list.cfg
-# 
+#
 # The package list file can contain the following types of lines:
 #   - Package names: The script will install the package using apt
 #   - Directives: These lines contain a package name followed by a colon and a list of directives
@@ -46,7 +46,7 @@ VERSION="1.0"
 # Command line flags
 dry_run=false
 preserve_working_dir=false
-filename=""
+package_file=""
 temp_dir=""
 
 usage() {
@@ -121,9 +121,9 @@ parse_command_line() {
     bail 1
   fi
 
-  filename=$(realpath "$1")
-  if [[ ! -r "$filename" ]]; then
-    echo "File '$filename' does not exist or is not readable."
+  package_file=$(realpath "$1")
+  if [[ ! -r "$package_file" ]]; then
+    echo "Package file '$package_file' does not exist or is not readable."
     bail 1
   fi
 }
@@ -159,40 +159,20 @@ is_package_installed() {
   local package="$1"
 
   if [[ " ${installed_packages[@]} " =~ " ${package} " ]]; then
-    return 0 
+    return 0
   fi
   return 1
 }
 
-# Check if a file is a Debian package
-is_deb_package() {
-  local filename="$1"
-
-  # Check if the file exists and is a regular file
-  if [[ ! -f "$filename" ]]; then
-    echo "File $filename does not exist or is not a regular file."
-    return 1
+apt_update() {
+  apt update >& /dev/null
+  if [[ $? -ne 0 ]]; then
+    echo "Error updating package list. Exiting."
+    bail 1
   fi
-
-  # Check the magic number using file command
-  local file_type=$(file -b "$filename")
-
-  # Use regex to match "Debian binary package" variations
-  if [[ "$file_type" =~ ^Debian\ binary\ package.*$ ]]; then
-    echo "Debian binary package"
-    return 0
-  fi
-
-  # Check for "ar archive" (for older Debian packages)
-  if [[ "$file_type" == "ar archive" ]]; then
-    echo "Debian binary package (old format)"
-    return 0
-  fi
-
-  return 1
 }
 
-# Add a deb source to /etc/apt/sources.list.d/... file
+# Add a deb source to a fine in /etc/apt/sources.list.d/
 add_deb_source() {
   line=$1
   IFS=' ' read -r filename string <<< "$line"
@@ -211,14 +191,13 @@ add_deb_source() {
   if [[ ! -f "$filename" ]]; then
     echo "$string" > "$filename"
     echo "Added package source in $filename"
+  else
+    echo "'$filename' exists, skipping'"
+    return
   fi
 
   echo "Added repository: $repo, running 'apt update'"
-  apt update >& /dev/null
-  if [[ $? -ne 0 ]]; then
-    echo "Error updating package list. Exiting."
-    bail 1
-  fi
+  apt_update
 }
 
 # Add a repository using add-apt-repository
@@ -236,15 +215,10 @@ add_repo() {
     bail 1
   fi
 
-  echo "Added repository: $repo, running 'apt update'"
-  apt update >& /dev/null
-  if [[ $? -ne 0 ]]; then
-    echo "Error updating package list. Exiting."
-    bail 1
-  fi
+  apt_update
 }
 
-# Download a file from a URL and install it 
+# Download a file from a URL and install it
 download_from_url() {
   local original_url="$1"
 
@@ -269,17 +243,21 @@ download_from_url() {
   local return_code=$?
 
   if [[ $return_code -ne 0 ]]; then
-    echo "Error downloading file from $original_url."
+    echo "Error downloading file from '$original_url'"
     echo "Curl returned exit code: $return_code"
     bail 1
   fi
 
-  if ! is_deb_package "$filename"; then
-    echo "Error: Downloaded file is not a Debian package. Exiting."
-    bail 1
+  #
+  # Install the .deb
+  #
+
+  if [[ ! -f "$filename" ]]; then
+    echo "File $filename does not exist or is not a regular file."
+    return 1
   fi
 
-  echo "Installing file: $filename"
+  echo "Installing Debian package: $filename"
   dpkg -i "$filename"
   if [[ $? -ne 0 ]]; then
     echo "Error installing $filename. Exiting."
@@ -292,12 +270,6 @@ apt_install() {
   package=$1
   # Trim leading and trailing whitespace
   package=$(echo "$package" | xargs)
-
-  # Check if the package is already installed
-  if is_package_installed $package; then
-    echo "Already installed: $package"
-    return
-  fi
 
   if $dry_run; then
     echo "Would install: $package"
@@ -344,7 +316,7 @@ handle_directives() {
     return
   fi
 
-  # Handle any directives associated with this package
+  # Handle any pre-install directives associated with this package
   IFS=';' read -ra directives <<< $rest
   for d in "${directives[@]}"; do
     # Split the line at the first colon
@@ -352,6 +324,10 @@ handle_directives() {
     # Remove leading/trailing whitespace
     directive=$(echo "$directive" | xargs)
     content=$(echo "$content" | xargs)
+
+    if [[ $directive =~ ^post_ ]]; then
+      continue
+    fi
 
     case "$directive" in
       deb)
@@ -377,6 +353,30 @@ handle_directives() {
   done
 
   apt_install $package
+
+  # Post install directives
+  IFS=';' read -ra directives <<< $rest
+  for d in "${directives[@]}"; do
+    # Split the line at the first colon
+    IFS=':' read -r directive content <<< "$d"
+    # Remove leading/trailing whitespace
+    directive=$(echo "$directive" | xargs)
+    content=$(echo "$content" | xargs)
+
+    if [[ ! $directive =~ ^post_ ]]; then
+      continue
+    fi
+
+    case "$directive" in
+      post_script)
+        run_script "$content"
+        ;;
+      *)
+        echo "Unknown directive: '$directive'"
+        bail 1
+        ;;
+    esac
+  done
 }
 
 # Main function
@@ -388,11 +388,11 @@ main() {
 
   # Read the file line by line
   while IFS= read -r line; do
-    # Handle backslash line continuation 
+    # Handle backslash line continuation
     while [[ "$line" =~ \\$ ]]; do
       read -r next_line
       line="${line%\\}"  # Remove the trailing backslash
-      line="${line}${next_line}" 
+      line="${line}${next_line}"
     done
 
     # Skip empty lines and comments
@@ -402,7 +402,7 @@ main() {
 
     handle_directives "$line"
 
-  done < "$filename"
+  done < "$package_file"
 
   echo "Installation complete."
   bail 0
