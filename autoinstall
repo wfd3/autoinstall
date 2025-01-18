@@ -8,7 +8,6 @@ import tempfile
 import shutil
 import urllib.request
 from pathlib import Path
-import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Set, Tuple, Optional
 
@@ -320,7 +319,7 @@ def run_scripts(scripts: List[Tuple[str, str]], phase: str = ""):
 def download_packages(to_download: PackageList) -> PackageList:
     """Download packages from URLs.
 
-    Returns dict mapping package names to downloaded filenames.
+    Returns a package list of all packages that have had files downloaded.
     """
 
     commentary("Downloading packages") 
