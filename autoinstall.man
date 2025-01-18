@@ -1,55 +1,202 @@
-.TH INSTALL_EXTRAS 1 "October 15, 2023" "install_extras" "User Commands"
-
+.TH INSTALL-PACKAGES 1 "January 2025" "Version 1.1" "User Commands"
 .SH NAME
-install_extras \- Installs packages or runs directives listed in a file
-
+install-packages - flexible package installer for Debian-based systems
 .SH SYNOPSIS
-.B install_extras
-[\-n] [\-p] [\-h]
-.I filename
-
+.B install-packages
+[\fIOPTION\fR]... \fIPACKAGE-LIST-FILE\fR
 .SH DESCRIPTION
-This script reads a list of packages or directives from a file, then installs packages with apt or performs other actions like adding repositories or running custom scripts. Each line of the file can specify a package name, or a directive with additional instructions.
-
+.B install-packages
+reads a list of packages from a file, then installs packages with apt or performs other actions like adding repositories or running custom scripts. Each line of the file can specify a package name, or a directive with additional instructions.
 .PP
-The available directives include:
-.TP
-.B deb
-Add a Debian source to /etc/apt/sources.list.d/
-.TP
-.B repo
-Add a repository with add\-apt\-repository
-.TP
-.B url
-Download and install a package from a URL
-.TP
-.B script
-Run a custom script before or after installation
-.TP
-.B source
-Add content to a file in /etc/apt/sources.list.d/
-
+Must be run as root unless using --dryrun mode.
 .SH OPTIONS
 .TP
-.B \-n
-Dry run (do not actually install packages).
+.BR -n ", " --dryrun
+Preview changes without installing anything
 .TP
-.B \-p
-Preserve the temporary working directory.
+.BR -p ", " --preserve
+Keep temporary working directory
 .TP
-.B \-h
-Display help and exit.
-
-.SH EXAMPLES
+.BR -q ", " --quiet
+Suppress subprocess output
+.TP
+.BR -v ", " --version
+Show program version
+.TP
+.BR --force-all
+Force reinstallation of all packages
+.TP
+.BR --only " " \fIPKGS\fR
+Only install specified packages
+.TP
+.BR --only-flags " " \fIFLAGS\fR
+Only install packages with specified flags
+.TP
+.BR --skip " " \fIPKGS\fR
+Skip specified packages
+.TP
+.BR --skip-flags " " \fIFLAGS\fR
+Skip packages with specified flags
+.SH PACKAGE LIST
+The package list is a text file containing package entries, where each entry starts with a package name at the beginning of a line. If the package name is followed by a colon, the subsequent indented lines contain directives that customize its installation; without a colon, the package is installed with default settings. Directives can include download URLs for DEB packages, APT repository information, source list entries, pre/post installation scripts, and flags that control installation behavior. Lines can be continued with a backslash, and comments start with '#'.
+.SH PACKAGE LIST FORMAT EXAMPLE
+The following example demonstrates various
+.B autoinstall
+capabilities
+.PP
 .nf
-install_extras -n package_list.txt
-install_extras -p package_list.txt
+# Install emacs
+emacs
+
+# Install atop
+atop
+
+# Install tcsh, add tcsh to /etc/shells
+tcsh:
+  postscript: echo "/bin/tcsh" >> /etc/shells
+
+# Install code from a dowloaded .deb file
+debpkg: 
+  deb: https://path.to.deb/debpkg.deb 
+
+# Clean up from installation
+# Note the flags entry.  This indicates this is a package to run at 
+# the end of installation and that there is no default apt package
+# to install.
+__termination_package:
+  flags: end, no_apt
+  script: apt -y autoremove
 .fi
-
+.PP
+This installs four packages and performs cleanup:
+.IP \(bu 4
+.B
+emacs
+and
+.B atop
+are installed via APT with default settings;
+.IP \(bu 4
+.B
+tcsh
+is installed via APT and adds itself to /etc/shells;
+.IP \(bu 4
+.B
+debpkg
+is downloaded and installed from the official .deb package;
+.IP \(bu 4
+.B
+__termination_package
+(not an actual package) runs
+apt autoremove after all other installations complete.  Note the preceding underscores in the package name are not required.
+.PP
+Lines can be continued with backslash.
+.SH SPECIAL FLAGS
+.TP
+.B start
+Indicates that this package should be run before unflagged and end flagged packages.
+.TP
+.B end
+Indicates that this package should be run after unflagged and start flagged packages. 
+.TP
+.B force
+Always reinstall package
+.TP
+.B skip
+Skip this package
+.TP
+.B force_apt_update
+Force APT database update after installation
+.TP
+.B no_apt
+Do not assume that the package name maps to an APT package to install.  
 .SH EXIT STATUS
-The script exits with status 0 on success, and a non-zero status if an error occurs.
-
+.TP
+.B 0
+on success
+.TP
+.B 1
+on error. 
+.SH AUTHOR
+Written by [Your name]
+.SH BUGS
+Report bugs to [Your bug reporting address]
 .SH COPYRIGHT
-Copyright © 2023.  
-This is free software; see the source for copying conditions.  
-There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Copyright © 2024 [Your copyright notice]
+
+.PP
+Must be run as root unless using --dryrun mode.
+.SH OPTIONS
+.TP
+.BR -n ", " --dryrun
+Preview changes without installing anything
+.TP
+.BR -p ", " --preserve
+Keep temporary working directory
+.TP
+.BR -q ", " --quiet
+Suppress subprocess output
+.TP
+.BR -v ", " --version
+Show program version
+.TP
+.BR --force-all
+Force reinstallation of all packages
+.TP
+.BR --only " " \fIPKGS\fR
+Only install specified packages
+.TP
+.BR --only-flags " " \fIFLAGS\fR
+Only install packages with specified flags
+.TP
+.BR --skip " " \fIPKGS\fR
+Skip specified packages
+.TP
+.BR --skip-flags " " \fIFLAGS\fR
+Skip packages with specified flags
+.SH PACKAGE LIST FORMAT
+The package list file contains package entries with directives:
+.PP
+.nf
+package-name:
+flags: flag1, flag2
+repo: ppa:user/repository
+source: filename content
+script: pre-installation-command
+postscript: post-installation-command
+deb: http://example.com/package.deb
+apt: alternative-package-name
+.fi
+.PP
+Lines can be continued with backslash.
+.SH SPECIAL FLAGS
+.TP
+.B start
+Install package before regular packages
+.TP
+.B end
+Install package after regular packages
+.TP
+.B force
+Always reinstall package
+.TP
+.B skip
+Skip this package
+.TP
+.B force_apt_update
+Force APT database update
+.TP
+.B no_apt
+Skip APT installation phase
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+Error occurred
+.SH AUTHOR
+Written by [Your name]
+.SH BUGS
+Report bugs to [Your bug reporting address]
+.SH COPYRIGHT
+Copyright © 2024 [Your copyright notice]
